@@ -9,8 +9,8 @@ type Bindings = {
   SEARCHINDEX: string;
   SQL_URL: string;
   SQL_AUTH_TOKEN: string;
-  AUTH0_CLIENT_ID: string;
-  AUTH0_CLIENT_DOMAIN: string;
+  AUTH0_CLIENTID: string;
+  AUTH0_DOMAIN: string;
 };
 
 const app = new Hono<{ Bindings: Bindings }>();
@@ -21,7 +21,7 @@ app.get("/", (c) => {
     authToken: c.env.SQL_AUTH_TOKEN,
   });
 
-  return c.html(Base());
+  return c.html(Base({clientId: c.env.AUTH0_CLIENTID, domain: c.env.AUTH0_DOMAIN}));
 });
 
 app.post("/search", async (c) => {

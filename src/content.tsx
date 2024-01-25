@@ -1,8 +1,12 @@
 import { html } from "hono/html";
 import { FacetDistribution, SearchParams, SearchResponse } from "meilisearch";
 
-export const Base = () => html`
-  <!DOCTYPE html>
+interface Auth0 {
+  clientId: string;
+  domain: string;
+}
+
+export const Base = ({ clientId, domain }: Auth0) => html`
   <!DOCTYPE html>
   <html lang="en">
     <head>
@@ -14,21 +18,25 @@ export const Base = () => html`
         src="https://kit.fontawesome.com/42cfadb274.js"
         crossorigin="anonymous"
       ></script>
-      <script src="https://cdn.auth0.com/js/lock/11.x/lock.min.js"></script>
-
+      <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
+    
       <meta content="width=device-width,initial-scale=1" name="viewport" />
       <meta charset="UTF-8" />
       <title>Recipe Search</title>
       <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/dist/js.cookie.min.js"></script>
       <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+      <script src="//unpkg.com/alpinejs" defer></script>
     </head>
 
-    <body>
+    <body >
+        <div x-data="user" >
       <nav class="navbar" role="navigation" aria-label="main navigation">
         <div class="navbar-end">
           <div class="navbar-item">
             <div class="buttons">
-              <a class="button is-light" href="/login"> Log in </a>
+              <button class="button is-light" x-on:click="login()">
+                Log in
+              </button>
             </div>
           </div>
         </div>
@@ -37,7 +45,10 @@ export const Base = () => html`
         <div class="container has-text-centered">
           <div class="column is-6 is-offset-3">
             <div class="box">
-              <form hx-post="/search" hx-target="#search-results">
+              <form hx-post="/search" 
+                    hx-target="#search-results"
+                    hx-headers='js:{"Authorization": buildA($data)}'
+              >
                 <div class="field is-grouped">
                   <p class="control is-expanded">
                     <input
@@ -64,57 +75,71 @@ export const Base = () => html`
         </div>
         <div id="search-results"></div>
       </div>
+        </div>
       <script>
-      var Auth = (function() {
+          function buildUser() {
+              return {
+                  client: null,
+                  token: "",
+                  user: "",
+                  async init() {
+                      this.client = new auth0.Auth0Client({
+                          domain: "${domain}",
+                          clientId: "${clientId}",
+                      });
 
-        var wm = new WeakMap();
-        var privateStore = {};
-        var lock;
-      
-        function Auth() {
-          this.lock = new Auth0Lock(
-            '<{yourClientId}>',
-            '<{yourDomain}>'
-          );
-          wm.set(privateStore, {
-            appName: "example"
-          });
-        }
-      
-        Auth.prototype.getProfile = function() {
-          return wm.get(privateStore).profile;
-        };
-      
-        Auth.prototype.authn = function() {
-          // Listening for the authenticated event
-          this.lock.on("authenticated", function(authResult) {
-            // Use the token in authResult to getUserInfo() and save it if necessary
-            this.getUserInfo(authResult.accessToken, function(error, profile) {
-              if (error) {
-                // Handle error
-                return;
+                      await this.updateUI()
+                        
+                      const isAuthenticated = await this.client.isAuthenticated();
+
+                      if (isAuthenticated) {
+                          // show the gated content
+                          return;
+                      }
+
+                      const query = window.location.search;
+                      if (query.includes("code=") && query.includes("state=")) {
+
+                          // Process the login state
+                          await this.client.handleRedirectCallback();
+
+                          await this.updateUI();
+
+                          // Use replaceState to redirect the user away and remove the querystring parameters
+                          window.history.replaceState({}, document.title, "/");
+                      }
+
+                  },  async updateUI() {
+                      var isAuth = await this.client.isAuthenticated()
+                      if (isAuth) {
+                          this.token = await this.client.getTokenSilently()
+                          this.user = await this.client.getUser()
+
+                          console.log(this.token)
+                          console.log(this.user)
+                      }
+
+                  }, login() {
+                      this.client.loginWithRedirect({
+                          authorizationParams: {
+                              redirect_uri: window.location.origin,
+                          },
+                      });
+                  }
               }
-      
-              //we recommend not storing Access Tokens unless absolutely necessary
-              wm.set(privateStore, {
-                accessToken: authResult.accessToken
-              });
-      
-              wm.set(privateStore, {
-                profile: profile
-              });
-      
-            });
-          });
-        };
-        return Auth;
-      }());
+          }
+          
+          document.addEventListener('alpine:init', function() {
+              Alpine.data('user', buildUser)
+          })
       </script>
     </body>
   </html>
 `;
 
-export const SearchResults = (searchResults: SearchResponse<Record<string, any>, SearchParams>) => html`<div class="columns">
+export const SearchResults = (
+  searchResults: SearchResponse<Record<string, any>, SearchParams>
+) => html`<div class="columns">
   <div class="column is-9">
     <div>
       <table class="table is-hoverable is-narrow">
@@ -128,8 +153,17 @@ export const SearchResults = (searchResults: SearchResponse<Record<string, any>,
             <th>Category</th>
           </tr>
         </thead>
-        ${searchResults.hits.map((f)=> {
-            return <tr><td>{f.recipeId}</td><td>{f.issue}</td><td>{f.months + " " + f.year }</td><td>{f.mainTitle || f.coverTitle}</td><td>{f.page}</td><td>{f.categories.join(", ")}</td></tr>
+        ${searchResults.hits.map((f) => {
+          return (
+            <tr>
+              <td>{f.recipeId}</td>
+              <td>{f.issue}</td>
+              <td>{f.months + " " + f.year}</td>
+              <td>{f.mainTitle || f.coverTitle}</td>
+              <td>{f.page}</td>
+              <td>{f.categories.join(", ")}</td>
+            </tr>
+          );
         })}
       </table>
     </div>
@@ -138,28 +172,62 @@ export const SearchResults = (searchResults: SearchResponse<Record<string, any>,
     <div>
       <nav class="panel">
         <p class="panel-heading">Filter By Category</p>
-        ${searchResults.facetDistribution && Object.keys(searchResults.facetDistribution['categories']).map(yr=> {
-
-            return <label class="panel-block">
-                <input value={yr} hx-post="/search" hx-target="#search-results" hx-include="#search-input" name="category" type="checkbox" /><span>{yr + " (" + getValue(searchResults.facetDistribution, 'categories', yr )  + ")"}</span>
+        ${searchResults.facetDistribution &&
+        Object.keys(searchResults.facetDistribution["categories"]).map((yr) => {
+          return (
+            <label class="panel-block">
+              <input
+                value={yr}
+                hx-post="/search"
+                hx-target="#search-results"
+                hx-include="#search-input"
+                name="category"
+                type="checkbox"
+              />
+              <span>
+                {yr +
+                  " (" +
+                  getValue(searchResults.facetDistribution, "categories", yr) +
+                  ")"}
+              </span>
             </label>
+          );
         })}
       </nav>
       <nav class="panel">
         <p class="panel-heading">Filter By Year</p>
-        ${searchResults.facetDistribution && Object.keys(searchResults.facetDistribution['year']).map(yr=> {
-
-            return <label class="panel-block">
-                <input value={yr} hx-post="/search" hx-target="#search-results" hx-include="#search-input" name="year" type="checkbox" /><span>{yr + " (" + getValue(searchResults.facetDistribution, 'year', yr )  + ")"}</span>
+        ${searchResults.facetDistribution &&
+        Object.keys(searchResults.facetDistribution["year"]).map((yr) => {
+          return (
+            <label class="panel-block">
+              <input
+                value={yr}
+                hx-post="/search"
+                hx-target="#search-results"
+                hx-include="#search-input"
+                name="year"
+                type="checkbox"
+              />
+              <span>
+                {yr +
+                  " (" +
+                  getValue(searchResults.facetDistribution, "year", yr) +
+                  ")"}
+              </span>
             </label>
+          );
         })}
       </nav>
     </div>
   </div>
 </div>`;
 
-
-
-const getValue = (facet: FacetDistribution | undefined, facetName: string, key: string) : number | string =>  {
-    return facet && facet[facetName] && facet[facetName][key] ? facet[facetName][key] : ""
-}
+const getValue = (
+  facet: FacetDistribution | undefined,
+  facetName: string,
+  key: string
+): number | string => {
+  return facet && facet[facetName] && facet[facetName][key]
+    ? facet[facetName][key]
+    : "";
+};
