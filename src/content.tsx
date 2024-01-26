@@ -18,14 +18,11 @@ export const Base = ({ clientId, domain }: Auth0) => html`
         src="https://kit.fontawesome.com/42cfadb274.js"
         crossorigin="anonymous"
       ></script>
-      <script src="https://cdn.auth0.com/js/auth0-spa-js/2.0/auth0-spa-js.production.js"></script>
     
       <meta content="width=device-width,initial-scale=1" name="viewport" />
       <meta charset="UTF-8" />
       <title>Recipe Search</title>
-      <script src="https://cdn.jsdelivr.net/npm/js-cookie@3.0.5/dist/js.cookie.min.js"></script>
       <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-      <script src="//unpkg.com/alpinejs" defer></script>
     </head>
 
     <body >
@@ -76,63 +73,6 @@ export const Base = ({ clientId, domain }: Auth0) => html`
         <div id="search-results"></div>
       </div>
         </div>
-      <script>
-          function buildUser() {
-              return {
-                  client: null,
-                  token: "",
-                  user: "",
-                  async init() {
-                      this.client = new auth0.Auth0Client({
-                          domain: "${domain}",
-                          clientId: "${clientId}",
-                      });
-
-                      await this.updateUI()
-                        
-                      const isAuthenticated = await this.client.isAuthenticated();
-
-                      if (isAuthenticated) {
-                          // show the gated content
-                          return;
-                      }
-
-                      const query = window.location.search;
-                      if (query.includes("code=") && query.includes("state=")) {
-
-                          // Process the login state
-                          await this.client.handleRedirectCallback();
-
-                          await this.updateUI();
-
-                          // Use replaceState to redirect the user away and remove the querystring parameters
-                          window.history.replaceState({}, document.title, "/");
-                      }
-
-                  },  async updateUI() {
-                      var isAuth = await this.client.isAuthenticated()
-                      if (isAuth) {
-                          this.token = await this.client.getTokenSilently()
-                          this.user = await this.client.getUser()
-
-                          console.log(this.token)
-                          console.log(this.user)
-                      }
-
-                  }, login() {
-                      this.client.loginWithRedirect({
-                          authorizationParams: {
-                              redirect_uri: window.location.origin,
-                          },
-                      });
-                  }
-              }
-          }
-          
-          document.addEventListener('alpine:init', function() {
-              Alpine.data('user', buildUser)
-          })
-      </script>
     </body>
   </html>
 `;
