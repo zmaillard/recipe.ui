@@ -1,9 +1,12 @@
 import { Hono } from "hono/quick";
+import type { KVNamespace } from '@cloudflare/workers-types'
 import { setCookie, deleteCookie } from "hono/cookie"
 import { Base, SearchResults } from "./content";
 import { Meilisearch, SearchParams } from "meilisearch";
 import { Client as LibsqlClient, createClient } from "@libsql/client/web";
 import jwt from '@tsndr/cloudflare-worker-jwt'
+import { randomString } from "./util";
+import {jwtCheckMiddleware, jwtValidateMiddleware} from "./jwtmiddleware";
 
 type Bindings = {
   SEARCHTOKEN: string;
@@ -16,9 +19,14 @@ type Bindings = {
   AUTH0_CALLBACK: string;
   AUTH0_CLIENT_SECRET: string;
   AUTH0_AUDIENCE: string;
+  AUTH_SESSION: KVNamespace;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+type Variables = {
+  auth: boolean
+}
+
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>();
 
 app.get("/", (c) => {
   const sql = createClient({
@@ -26,23 +34,30 @@ app.get("/", (c) => {
     authToken: c.env.SQL_AUTH_TOKEN,
   });
 
-  return c.html(Base({clientId: c.env.AUTH0_CLIENTID, domain: c.env.AUTH0_DOMAIN}));
+  return c.html(Base());
 });
 
 app.get('/login', async(c) => {
-  deleteCookie(c, 'id_token')
   deleteCookie(c, 'access_token')
 
-  const state = "abc"
+  const state = randomString(32)
+  await c.env.AUTH_SESSION.put(state, state, {expirationTtl: 60})
   const url = `https://${c.env.AUTH0_DOMAIN}/authorize?response_type=code&client_id=${c.env.AUTH0_CLIENTID}&redirect_uri=${c.env.AUTH0_CALLBACK}&state=${state}&audience=${c.env.AUTH0_AUDIENCE}`
   return c.redirect(url, 302)
 })
 
 app.get('/callback', async(c) => {
   const code = c.req.query('code')
-  if (!code) {
+  const state = c.req.query('state')
+  if (!code || !state){
     return c.status(401)
   }
+
+  const session = await c.env.AUTH_SESSION.get(state)
+  if (!session){
+    return c.status(401)
+  }
+
 
   try {
     const resp = await fetch(`https://${c.env.AUTH0_DOMAIN}/oauth/token`, {
@@ -60,18 +75,13 @@ app.get('/callback', async(c) => {
 
 
     const json = await resp.json() as { access_token: string, expires_in: number }
-
-
+    console.log(json)
     try {
-      console.log(json)
       const isValid= jwt.verify(json.access_token,c.env.AUTH0_CLIENT_SECRET)
     } catch (e) {
-      console.log(e)
-
       return c.status(401)
     }
 
-    //setCookie(c, 'id_token', json.id_token)
     setCookie(c, 'access_token', json.access_token)
 
     return c.redirect('/', 302)
@@ -81,7 +91,9 @@ app.get('/callback', async(c) => {
 })
 
 
-app.post("/search", async (c) => {
+app.post("/search",jwtCheckMiddleware, async (c) => {
+  const isLoggedIn = c.var.auth
+
   const client = new Meilisearch({
     host: c.env.SEARCHHOST,
     apiKey: c.env.SEARCHTOKEN,
@@ -89,7 +101,6 @@ app.post("/search", async (c) => {
 
   const index = client.index(c.env.SEARCHINDEX);
   let body = await c.req.parseBody();
-  console.log(body);
   let searchTerm = body["search"].toString();
   let categoryFacet = body["category"];
   let yearFacet = body["year"];
@@ -109,7 +120,15 @@ app.post("/search", async (c) => {
   }
   const search = await index.search(searchTerm, searchObj);
 
-  return c.html(SearchResults(search));
+  return c.html(SearchResults(search, isLoggedIn, []));
 });
+
+app.post("/favorite",jwtValidateMiddleware, async (c) => {
+
+})
+
+app.post("/note",jwtValidateMiddleware, async (c) => {
+
+})
 
 export default app;

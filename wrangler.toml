@@ -5,9 +5,9 @@ node_compat = true
 # [vars]
 # MY_VARIABLE = "production_value"
 
-# [[kv_namespaces]]
-# binding = "MY_KV_NAMESPACE"
-# id = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+[[kv_namespaces]]
+binding = "AUTH_SESSION"
+id = "7432226397d743b4b82fec98a9a7286b"
 
 # [[r2_buckets]]
 # binding = "MY_BUCKET"
