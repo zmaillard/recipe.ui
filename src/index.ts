@@ -1,12 +1,12 @@
 import { Hono } from "hono/quick";
 import type { KVNamespace } from '@cloudflare/workers-types'
 import { setCookie, deleteCookie } from "hono/cookie"
-import { Base, SearchResults } from "./content";
+import {Base, SearchResults, hasFavorite, noFavorite} from "./content";
 import { Meilisearch, SearchParams } from "meilisearch";
-import { Client as LibsqlClient, createClient } from "@libsql/client/web";
-import jwt from '@tsndr/cloudflare-worker-jwt'
-import { randomString } from "./util";
-import {jwtCheckMiddleware, jwtValidateMiddleware} from "./jwtmiddleware";
+import { createClient } from "@libsql/client/web";
+import { randomString, validateJwt } from "./util";
+import {jwtCheckMiddleware, jwtValidateMiddleware} from "./middleware";
+import {addFavorite, getUserFavorite, removeFavorite} from "./db";
 
 type Bindings = {
   SEARCHTOKEN: string;
@@ -24,21 +24,25 @@ type Bindings = {
 
 type Variables = {
   auth: boolean
+  email: string
 }
 
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>();
 
 app.get("/", (c) => {
-  const sql = createClient({
-    url: c.env.SQL_URL,
-    authToken: c.env.SQL_AUTH_TOKEN,
-  });
-
   return c.html(Base());
 });
 
+
+app.get('/logout', async(c) => {
+  deleteCookie(c, 'access_token')
+  deleteCookie(c, 'name')
+  return c.redirect('/', 302)
+})
+
 app.get('/login', async(c) => {
   deleteCookie(c, 'access_token')
+  deleteCookie(c, 'name')
 
   const state = randomString(32)
   await c.env.AUTH_SESSION.put(state, state, {expirationTtl: 60})
@@ -72,12 +76,13 @@ app.get('/callback', async(c) => {
       })
     })
 
-
-
     const json = await resp.json() as { access_token: string, expires_in: number }
-    console.log(json)
     try {
-      const isValid= jwt.verify(json.access_token,c.env.AUTH0_CLIENT_SECRET)
+      const jwtRes = await validateJwt(json.access_token, `https://${c.env.AUTH0_DOMAIN}/.well-known/jwks.json`)
+      setCookie(c, 'name', jwtRes.email )
+      if (!jwtRes.isValid) {
+        return c.status(401)
+      }
     } catch (e) {
       return c.status(401)
     }
@@ -93,6 +98,16 @@ app.get('/callback', async(c) => {
 
 app.post("/search",jwtCheckMiddleware, async (c) => {
   const isLoggedIn = c.var.auth
+  let favorites:number[] = []
+  if (isLoggedIn) {
+    const sql = createClient({
+      url: c.env.SQL_URL,
+      authToken: c.env.SQL_AUTH_TOKEN,
+    });
+
+
+    favorites = await getUserFavorite(sql, c.var.email)
+  }
 
   const client = new Meilisearch({
     host: c.env.SEARCHHOST,
@@ -120,15 +135,48 @@ app.post("/search",jwtCheckMiddleware, async (c) => {
   }
   const search = await index.search(searchTerm, searchObj);
 
-  return c.html(SearchResults(search, isLoggedIn, []));
+  return c.html(SearchResults(search, isLoggedIn, favorites));
 });
 
-app.post("/favorite",jwtValidateMiddleware, async (c) => {
+app.post("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
+  const recipeId = c.req.param('recipeId')
 
+  let recipeIdNum = parseInt(recipeId)
+  if (isNaN(recipeIdNum)) {
+    return c.status(400)
+  }
+
+  const sql = createClient({
+    url: c.env.SQL_URL,
+    authToken: c.env.SQL_AUTH_TOKEN,
+  });
+
+  await addFavorite(sql, recipeIdNum, c.var.email)
+
+  return c.html(hasFavorite(recipeIdNum))
 })
 
+app.delete("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
+  const recipeId = c.req.param('recipeId')
+
+  let recipeIdNum = parseInt(recipeId)
+  if (isNaN(recipeIdNum)) {
+    return c.status(400)
+  }
+
+  const sql = createClient({
+    url: c.env.SQL_URL,
+    authToken: c.env.SQL_AUTH_TOKEN,
+  });
+
+  await removeFavorite(sql, recipeIdNum, c.var.email)
+
+  return c.html(noFavorite(recipeIdNum))
+})
+
+/*
 app.post("/note",jwtValidateMiddleware, async (c) => {
 
-})
+})*/
 
 export default app;

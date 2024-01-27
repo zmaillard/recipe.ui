@@ -13,22 +13,29 @@ export const Base = () => html`
                 src="https://kit.fontawesome.com/42cfadb274.js"
                 crossorigin="anonymous"
         ></script>
-
+        <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+        <script src="//unpkg.com/alpinejs" defer></script>
         <meta content="width=device-width,initial-scale=1" name="viewport"/>
         <meta charset="UTF-8"/>
         <title>Recipe Search</title>
-        <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     </head>
 
     <body>
-    <div x-data="user">
+    <div>
         <nav class="navbar" role="navigation" aria-label="main navigation">
             <div class="navbar-end">
                 <div class="navbar-item">
-                    <div class="buttons">
-                        <button class="button is-light" x-on:click="login()">
-                            Log in
-                        </button>
+                    <div class="buttons" x-data="user">
+                        <template x-if="loggedIn">
+                            <a href="/logout" class="button is-light">
+                                Log Out
+                            </a>
+                        </template>
+                        <template x-if="!loggedIn">
+                            <a href="/login" class="button is-light">
+                                Log in
+                            </a>
+                        </template>
                     </div>
                 </div>
             </div>
@@ -67,6 +74,37 @@ export const Base = () => html`
             <div id="search-results"></div>
         </div>
     </div>
+    <script>
+        document.addEventListener('alpine:init', () => {
+            Alpine.data('user', () => ({
+                loggedIn: false,
+                name: "",
+               init() {
+                   if (document.cookie.indexOf('access_token=') === -1 /*|| document.cookie.indexOf('name=') === -1*/) {
+                       this.loggedIn = false
+                       this.name = ''
+                   } else {
+                       this.loggedIn = true
+                       this.name = "Placeholder"  //document.cookie.split('; ').find(row => row.startsWith('name')).split('=')[1]
+                   }
+               } 
+            }))
+          /*  Alpine.data('user', () =>({
+                init() {
+                    if (document.cookie.indexOf('access_token') < 0 || document.cookie.indexOf('name') < 0) {
+                        this.loggedIn = false
+                        this.name = ''
+                    } else {
+                        this.loggedIn = true
+                        this.name = document.cookie.split('; ').find(row => row.startsWith('name')).split('=')[1]
+                    }
+                },
+                loggedIn: false,
+                name: ""
+            })
+        })*/
+        })
+    </script>
     </body>
     </html>
 `;
@@ -74,7 +112,7 @@ export const Base = () => html`
 export const SearchResults = (
     searchResults: SearchResponse<Record<string, any>, SearchParams>,
     isLoggedIn: boolean,
-    favorites: string[]
+    favorites: number[]
 ) => html`
     <div class="columns">
         <div class="column is-9">
@@ -161,6 +199,24 @@ export const SearchResults = (
         </div>
     </div>`;
 
+
+export const hasFavorite = (recipeId: number) => html`
+    <td>
+        <div hx-delete=${`/favorite/${recipeId}`}>
+            <i class="fas fa-star"></i>
+        </div>
+    </td>
+`
+
+export const noFavorite = (recipeId: number) => html`
+    <td>
+        <div hx-post=${`/favorite/${recipeId}`}>
+            <i class="fa-regular fa-star"></i>
+        </div>
+    </td>
+`
+
+
 const getValue = (
     facet: FacetDistribution | undefined,
     facetName: string,
@@ -171,12 +227,12 @@ const getValue = (
         : "";
 };
 
-function buildFavorite(f: Hit<Record<string, any>>, favorites: string[]) {
-    const hasFavorite = favorites.indexOf(f.recipeId) >= 0
+function buildFavorite(f: Hit<Record<string, any>>, favorites: number[]) {
+    const hasFavorite = favorites.indexOf(parseInt(f.recipeId)) >= 0
     if (hasFavorite) {
         return html`
             <td>
-                <div hx-delete=${`/favorite/${f.recipeId}`}>
+                <div hx-delete=${`/favorite/${f.recipeId}`} hx-target="closest td" hx-swap="outerHTML">
                     <i class="fas fa-star"></i>
                 </div>
             </td>
@@ -184,7 +240,7 @@ function buildFavorite(f: Hit<Record<string, any>>, favorites: string[]) {
     } else {
         return html`
             <td>
-                <div hx-post=${`/favorite/${f.recipeId}`}>
+                <div hx-post=${`/favorite/${f.recipeId}`}  hx-target="closest td" hx-swap="outerHTML">
                     <i class="fa-regular fa-star"></i>
                 </div>
             </td>

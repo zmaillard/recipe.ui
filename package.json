@@ -6,7 +6,7 @@
   "dependencies": {
     "@libsql/client": "^0.4.0-pre.7",
     "hono": "^3.12.5",
-    "@tsndr/cloudflare-worker-jwt": "^2.4.2",
+    "jose": "^5.2.0",
     "meilisearch": "^0.37.0"
   },
   "devDependencies": {
