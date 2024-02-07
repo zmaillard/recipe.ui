@@ -22,7 +22,7 @@ export const Base = (props: { search?: string; children?: any }) => html`
         <title>Recipe Search</title>
     </head>
 
-    <body>
+    <body hx-ext="loading-states">
     <div>
         <nav class="navbar" role="navigation" aria-label="main navigation">
             <div class="navbar-end">
@@ -49,7 +49,6 @@ export const Base = (props: { search?: string; children?: any }) => html`
                         <form hx-post="/search"
                               hx-target="#search-results"
                               data-loading-target="#search-button"
-                              data-loading-class="is-loading"
                         >
                             <div class="field is-grouped">
                                 <p class="control is-expanded">
@@ -63,8 +62,7 @@ export const Base = (props: { search?: string; children?: any }) => html`
                                     />
                                 </p>
                                 <p class="control">
-                                    <button id="search-button" class="button is-info"  type="submit">Search</button>
-                                    <button class="button is-text">Reset</button>
+                                    <button data-loading-class="is-loading" id="search-button" class="button is-info"  type="submit">Search</button>
                                 </p>
                             </div>
                         </form>
