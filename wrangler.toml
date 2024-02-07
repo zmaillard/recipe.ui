@@ -2,18 +2,16 @@ name = "recipe-ui"
 compatibility_date = "2023-12-01"
 node_compat = true
 
-# [vars]
-# MY_VARIABLE = "production_value"
 
 [[kv_namespaces]]
 binding = "AUTH_SESSION"
 id = "7432226397d743b4b82fec98a9a7286b"
 
-# [[r2_buckets]]
-# binding = "MY_BUCKET"
-# bucket_name = "my-bucket"
-
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "my-database"
-# database_id = ""
+[vars]
+SEARCHINDEX = "recipes"
+SEARCHHOST = "https://search.roadsign.pictures"
+SQL_URL = "libsql://recipe-zmaillard.turso.io"
+AUTH0_CLIENTID = "zfOtjqVGMEufqrtnnBuMyDCV17iE4HSi"
+AUTH0_DOMAIN = "sagebrushgis.auth0.com"
+AUTH0_CALLBACK = "https://recipesear.ch/callback"
+AUTH0_AUDIENCE = "https://bot.recipesear.ch"

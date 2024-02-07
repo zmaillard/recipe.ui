@@ -1,12 +1,14 @@
 import { Hono } from "hono/quick";
 import type { KVNamespace } from '@cloudflare/workers-types'
-import { setCookie, deleteCookie } from "hono/cookie"
+import {setCookie, deleteCookie, getCookie} from "hono/cookie"
 import {Base, SearchResults, hasFavorite, noFavorite} from "./content";
 import { Meilisearch, SearchParams } from "meilisearch";
 import { createClient } from "@libsql/client/web";
-import { randomString, validateJwt } from "./util";
+import {buildSearch, randomString, validateJwt} from "./util";
 import {jwtCheckMiddleware, jwtValidateMiddleware} from "./middleware";
 import {addFavorite, getUserFavorite, removeFavorite} from "./db";
+import { zValidator} from "@hono/zod-validator";
+import { z } from "zod";
 
 type Bindings = {
   SEARCHTOKEN: string;
@@ -29,8 +31,25 @@ type Variables = {
 
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>();
 
-app.get("/", (c) => {
-  return c.html(Base());
+app.get("/",jwtCheckMiddleware, async (c) => {
+  // Check if cookies are expired
+  // Remove if so
+  const isLoggedIn = c.var.auth
+  if (!isLoggedIn) {
+    deleteCookie(c, 'access_token')
+    deleteCookie(c, 'name')
+  }
+
+  const search = c.req.query('q')
+
+  if (search) {
+    let email = getCookie(c, 'name')
+    let searchItem = await buildSearch(isLoggedIn, c.env, c.env, search, undefined, undefined, email )
+    return c.html(Base({ search, children: searchItem}));
+
+  }
+
+  return c.html(Base({ search}));
 });
 
 
@@ -62,6 +81,9 @@ app.get('/callback', async(c) => {
     return c.status(401)
   }
 
+  if (session !== state) {
+    return c.status(401)
+  }
 
   try {
     const resp = await fetch(`https://${c.env.AUTH0_DOMAIN}/oauth/token`, {
@@ -96,46 +118,25 @@ app.get('/callback', async(c) => {
 })
 
 
-app.post("/search",jwtCheckMiddleware, async (c) => {
+app.post("/search",jwtCheckMiddleware, zValidator(
+    'form',
+    z.object({
+        search: z.string(),
+        category: z.string().optional(),
+        year: z.string().optional(),
+    })
+), async (c) => {
   const isLoggedIn = c.var.auth
-  let favorites:number[] = []
-  if (isLoggedIn) {
-    const sql = createClient({
-      url: c.env.SQL_URL,
-      authToken: c.env.SQL_AUTH_TOKEN,
-    });
+  let email = getCookie(c, 'name')
+
+  let body = c.req.valid('form')
+  let searchTerm = body.search;
+  let categoryFacet = body.category;
+  let yearFacet = body.year;
 
 
-    favorites = await getUserFavorite(sql, c.var.email)
-  }
-
-  const client = new Meilisearch({
-    host: c.env.SEARCHHOST,
-    apiKey: c.env.SEARCHTOKEN,
-  });
-
-  const index = client.index(c.env.SEARCHINDEX);
-  let body = await c.req.parseBody();
-  let searchTerm = body["search"].toString();
-  let categoryFacet = body["category"];
-  let yearFacet = body["year"];
-  let filters: string[] = [];
-
-  if (yearFacet) {
-    filters = ["year = " + yearFacet];
-  }
-  if (categoryFacet) {
-    filters = ["categories = '" + categoryFacet + "'"];
-  }
-
-  let searchObj: SearchParams = { facets: ["categories", "year"] };
-
-  if (filters.length > 0) {
-    searchObj.filter = filters;
-  }
-  const search = await index.search(searchTerm, searchObj);
-
-  return c.html(SearchResults(search, isLoggedIn, favorites));
+  let searchItem = await buildSearch(isLoggedIn, c.env, c.env, searchTerm, categoryFacet, yearFacet, email )
+  return c.html(searchItem);
 });
 
 app.post("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
@@ -153,7 +154,7 @@ app.post("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
 
   await addFavorite(sql, recipeIdNum, c.var.email)
 
-  return c.html(hasFavorite(recipeIdNum))
+  return c.html(hasFavorite({recipeId: recipeIdNum}))
 })
 
 app.delete("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
@@ -171,7 +172,7 @@ app.delete("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
 
   await removeFavorite(sql, recipeIdNum, c.var.email)
 
-  return c.html(noFavorite(recipeIdNum))
+  return c.html(noFavorite({recipeId: recipeIdNum}))
 })
 
 /*

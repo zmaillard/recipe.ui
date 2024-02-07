@@ -4,13 +4,16 @@
     "deploy": "wrangler deploy --minify src/index.ts"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.1.11",
     "@libsql/client": "^0.4.0-pre.7",
     "hono": "^3.12.5",
     "jose": "^5.2.0",
-    "meilisearch": "^0.37.0"
+    "meilisearch": "^0.37.0",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20231218.0",
+    "typed-htmx": "^0.2.1",
     "wrangler": "^3.22.0"
   }
 }

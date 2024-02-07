@@ -1,10 +1,3 @@
-/*
-GetUserFavorite(phoneNumber string, userName string) ([]int, error)
-GetRecipe(recipeId int) (Recipe, error)
-GetUser(phoneNumber string, userName string) (User, error)
-AddFavorite(recipe Recipe, user User) error
-RemoveFavorite(recipe Recipe, user User) error*/
-
 import {Client} from "@libsql/client/web";
 
 export const getUserFavorite = async (db: Client, email:string): Promise<number[]> => {
@@ -53,14 +46,3 @@ const getUserIdFromUserName = async (db: Client, userName: string): Promise<numb
 
     return -1 // TODO: Throw error
 }
-
-/*
-const getRecipe = async (recipeId) => {
-}
-
-const getUser = async (phoneNumber, userName) => {
-}
-
-
-
- */

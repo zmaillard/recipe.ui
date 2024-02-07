@@ -1,7 +1,8 @@
 import {html} from "hono/html";
 import {FacetDistribution, Hit, SearchParams, SearchResponse} from "meilisearch";
 
-export const Base = () => html`
+
+export const Base = (props: { search?: string; children?: any }) => html`
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -14,6 +15,7 @@ export const Base = () => html`
                 crossorigin="anonymous"
         ></script>
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+        <script src="https://unpkg.com/htmx.org/dist/ext/loading-states.js"></script>
         <script src="//unpkg.com/alpinejs" defer></script>
         <meta content="width=device-width,initial-scale=1" name="viewport"/>
         <meta charset="UTF-8"/>
@@ -25,7 +27,7 @@ export const Base = () => html`
         <nav class="navbar" role="navigation" aria-label="main navigation">
             <div class="navbar-end">
                 <div class="navbar-item">
-                    <div class="buttons" x-data="user">
+                    <div class="buttons"  x-data="user">
                         <template x-if="loggedIn">
                             <a href="/logout" class="button is-light">
                                 Log Out
@@ -46,6 +48,8 @@ export const Base = () => html`
                     <div class="box">
                         <form hx-post="/search"
                               hx-target="#search-results"
+                              data-loading-target="#search-button"
+                              data-loading-class="is-loading"
                         >
                             <div class="field is-grouped">
                                 <p class="control is-expanded">
@@ -55,10 +59,11 @@ export const Base = () => html`
                                             placeholder="Search For Recipes"
                                             class="input"
                                             id="search-input"
+                                            value="${props.search ?? props.search}"
                                     />
                                 </p>
                                 <p class="control">
-                                    <button class="button is-info" type="submit">Search</button>
+                                    <button id="search-button" class="button is-info"  type="submit">Search</button>
                                     <button class="button is-text">Reset</button>
                                 </p>
                             </div>
@@ -71,7 +76,9 @@ export const Base = () => html`
                     <div class="field is-grouped is-grouped-multiline"></div>
                 </div>
             </div>
-            <div id="search-results"></div>
+            <div id="search-results">
+                ${props.children}
+            </div>
         </div>
     </div>
     <script>
@@ -89,20 +96,6 @@ export const Base = () => html`
                    }
                } 
             }))
-          /*  Alpine.data('user', () =>({
-                init() {
-                    if (document.cookie.indexOf('access_token') < 0 || document.cookie.indexOf('name') < 0) {
-                        this.loggedIn = false
-                        this.name = ''
-                    } else {
-                        this.loggedIn = true
-                        this.name = document.cookie.split('; ').find(row => row.startsWith('name')).split('=')[1]
-                    }
-                },
-                loggedIn: false,
-                name: ""
-            })
-        })*/
         })
     </script>
     </body>
@@ -113,7 +106,7 @@ export const SearchResults = (
     searchResults: SearchResponse<Record<string, any>, SearchParams>,
     isLoggedIn: boolean,
     favorites: number[]
-) => html`
+) => (
     <div class="columns">
         <div class="column is-9">
             <div>
@@ -126,10 +119,10 @@ export const SearchResults = (
                         <th>Recipe Name</th>
                         <th>Page</th>
                         <th>Category</th>
-                        ${isLoggedIn && <th>Favorite</th> }
+                        {isLoggedIn && <th>Favorite</th> }
                     </tr>
                     </thead>
-                    ${searchResults.hits.map((f) => {
+                    {searchResults.hits.map((f) => {
                         return (
                                 <tr>
                                     <td>{f.recipeId}</td>
@@ -138,7 +131,7 @@ export const SearchResults = (
                                     <td>{f.mainTitle || f.coverTitle}</td>
                                     <td>{f.page}</td>
                                     <td>{f.categories.join(", ")}</td>
-                                    {isLoggedIn && buildFavorite(f, favorites)}
+                                    {isLoggedIn && buildFavorite ({f: f, favorites: favorites})}
                                 </tr>
                         );
                     })}
@@ -149,7 +142,7 @@ export const SearchResults = (
             <div>
                 <nav class="panel">
                     <p class="panel-heading">Filter By Category</p>
-                    ${searchResults.facetDistribution &&
+                    {searchResults.facetDistribution &&
                     Object.keys(searchResults.facetDistribution["categories"]).map((yr) => {
                         return (
                                 <label class="panel-block">
@@ -162,10 +155,7 @@ export const SearchResults = (
                                             type="checkbox"
                                     />
                                     <span>
-                {yr +
-                        " (" +
-                        getValue(searchResults.facetDistribution, "categories", yr) +
-                        ")"}
+                {`${yr} (${getValue(searchResults.facetDistribution, "categories", yr)})`}
               </span>
                                 </label>
                         );
@@ -173,7 +163,7 @@ export const SearchResults = (
                 </nav>
                 <nav class="panel">
                     <p class="panel-heading">Filter By Year</p>
-                    ${searchResults.facetDistribution &&
+                    {searchResults.facetDistribution &&
                     Object.keys(searchResults.facetDistribution["year"]).map((yr) => {
                         return (
                                 <label class="panel-block">
@@ -186,10 +176,8 @@ export const SearchResults = (
                                             type="checkbox"
                                     />
                                     <span>
-                {yr +
-                        " (" +
-                        getValue(searchResults.facetDistribution, "year", yr) +
-                        ")"}
+                {`${yr} (${getValue(searchResults.facetDistribution, "year", yr)})`}
+
               </span>
                                 </label>
                         );
@@ -197,24 +185,24 @@ export const SearchResults = (
                 </nav>
             </div>
         </div>
-    </div>`;
+    </div> )
 
 
-export const hasFavorite = (recipeId: number) => html`
+export const hasFavorite = (props: { recipeId: number }) =>
     <td>
-        <div hx-delete=${`/favorite/${recipeId}`}>
+        <div hx-delete={`/favorite/${props.recipeId}`}>
             <i class="fas fa-star"></i>
         </div>
     </td>
-`
 
-export const noFavorite = (recipeId: number) => html`
+
+export const noFavorite = (props: { recipeId: number }) =>
     <td>
-        <div hx-post=${`/favorite/${recipeId}`}>
+        <div hx-post={`/favorite/${props.recipeId}`}>
             <i class="fa-regular fa-star"></i>
         </div>
     </td>
-`
+
 
 
 const getValue = (
@@ -227,24 +215,23 @@ const getValue = (
         : "";
 };
 
-function buildFavorite(f: Hit<Record<string, any>>, favorites: number[]) {
-    const hasFavorite = favorites.indexOf(parseInt(f.recipeId)) >= 0
+function buildFavorite(props:{ f: Hit<Record<string, any>>, favorites: number[]}) {
+    const hasFavorite = props.favorites.indexOf(parseInt(props.f.recipeId)) >= 0
     if (hasFavorite) {
-        return html`
+        return (
             <td>
-                <div hx-delete=${`/favorite/${f.recipeId}`} hx-target="closest td" hx-swap="outerHTML">
+                <div hx-delete={`/favorite/${props.f.recipeId}`} hx-target="closest td" hx-swap="outerHTML">
                     <i class="fas fa-star"></i>
                 </div>
             </td>
-        `
+        )
     } else {
-        return html`
+        return (
             <td>
-                <div hx-post=${`/favorite/${f.recipeId}`}  hx-target="closest td" hx-swap="outerHTML">
+                <div hx-post={`/favorite/${props.f.recipeId}`}  hx-target="closest td" hx-swap="outerHTML">
                     <i class="fa-regular fa-star"></i>
                 </div>
             </td>
-        `
+        )
     }
-
 }

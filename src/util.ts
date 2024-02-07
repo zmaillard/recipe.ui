@@ -1,4 +1,10 @@
 import * as jose from "jose";
+import {jwtCheckMiddleware} from "./middleware";
+import { createClient } from "@libsql/client/web";
+import {getUserFavorite} from "./db";
+import {Meilisearch, SearchParams} from "meilisearch";
+import {SearchResults} from "./content";
+import app from "./index";
 
 export function randomString(length: number): string {
     const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -52,4 +58,51 @@ export async function validateJwt(token: string, jwksUrl: string): Promise<JwtUs
             isValid: false,
         }
     }
+}
+
+interface SearchClient  {
+    SEARCHTOKEN: string;
+    SEARCHHOST: string;
+    SEARCHINDEX: string;
+}
+
+interface SqlClient {
+    SQL_URL: string;
+    SQL_AUTH_TOKEN: string;
+}
+
+export const buildSearch = async (isLoggedIn: boolean, searchParams: SearchClient, sqlClient: SqlClient, searchTerm: string, categoryFacet?: string, yearFacet?:string,  email?:string) => {
+    let favorites:number[] = []
+    if (isLoggedIn && email) {
+        const sql = createClient({
+            url: sqlClient.SQL_URL,
+            authToken: sqlClient.SQL_AUTH_TOKEN,
+        });
+
+        favorites = await getUserFavorite(sql, email)
+    }
+
+    const client = new Meilisearch({
+        host: searchParams.SEARCHHOST,
+        apiKey: searchParams.SEARCHTOKEN,
+    });
+
+    const index = client.index(searchParams.SEARCHINDEX);
+    let filters: string[] = [];
+
+    if (yearFacet) {
+        filters = ["year = " + yearFacet];
+    }
+    if (categoryFacet) {
+        filters = ["categories = '" + categoryFacet + "'"];
+    }
+
+    let searchObj: SearchParams = { facets: ["categories", "year"] };
+
+    if (filters.length > 0) {
+        searchObj.filter = filters;
+    }
+
+    const searchRes = await index.search(searchTerm, searchObj);
+    return SearchResults(searchRes, isLoggedIn, favorites);
 }
