@@ -2,9 +2,9 @@ import { Hono } from "hono/quick";
 import type { KVNamespace } from '@cloudflare/workers-types'
 import {setCookie, deleteCookie, getCookie} from "hono/cookie"
 import {Base, SearchResults, hasFavorite, noFavorite} from "./content";
-import { Meilisearch, SearchParams } from "meilisearch";
+import {DocumentQuery, Meilisearch, SearchParams} from "meilisearch";
 import { createClient } from "@libsql/client/web";
-import {buildSearch, randomString, validateJwt} from "./util";
+import {buildFavorites, buildSearch, randomString, validateJwt} from "./util";
 import {jwtCheckMiddleware, jwtValidateMiddleware} from "./middleware";
 import {addFavorite, getUserFavorite, removeFavorite} from "./db";
 import { zValidator} from "@hono/zod-validator";
@@ -138,6 +138,11 @@ app.post("/search",jwtCheckMiddleware, zValidator(
   let searchItem = await buildSearch(isLoggedIn, c.env, c.env, searchTerm, categoryFacet, yearFacet, email )
   return c.html(searchItem);
 });
+
+app.get('/favorite', jwtValidateMiddleware, async (c) => {
+  const favs =  await buildFavorites(c.env, c.env, c.var.email)
+  return c.html(Base({ search: "", children: favs}));
+})
 
 app.post("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
   const recipeId = c.req.param('recipeId')

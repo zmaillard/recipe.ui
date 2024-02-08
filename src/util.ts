@@ -3,7 +3,7 @@ import {jwtCheckMiddleware} from "./middleware";
 import { createClient } from "@libsql/client/web";
 import {getUserFavorite} from "./db";
 import {Meilisearch, SearchParams} from "meilisearch";
-import {SearchResults} from "./content";
+import {FavoriteResults, SearchResults} from "./content";
 import app from "./index";
 
 export function randomString(length: number): string {
@@ -105,4 +105,27 @@ export const buildSearch = async (isLoggedIn: boolean, searchParams: SearchClien
 
     const searchRes = await index.search(searchTerm, searchObj);
     return SearchResults(searchRes, isLoggedIn, favorites);
+}
+
+
+export const buildFavorites = async (searchParams: SearchClient, sqlClient: SqlClient, email:string) => {
+        const sql = createClient({
+            url: sqlClient.SQL_URL,
+            authToken: sqlClient.SQL_AUTH_TOKEN,
+        });
+
+       const  favorites = await getUserFavorite(sql, email)
+
+
+    const client = new Meilisearch({
+        host: searchParams.SEARCHHOST,
+        apiKey: searchParams.SEARCHTOKEN,
+    });
+
+    const index = client.index(searchParams.SEARCHINDEX);
+    const filter = favorites.map((id) => (`recipeId = ${id}`)).join(" OR ")
+
+    let documents = await index.getDocuments({filter: `(${filter})`});
+
+    return FavoriteResults(documents);
 }

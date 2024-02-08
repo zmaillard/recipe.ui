@@ -1,5 +1,5 @@
 import {html} from "hono/html";
-import {FacetDistribution, Hit, SearchParams, SearchResponse} from "meilisearch";
+import {FacetDistribution, Hit, ResourceResults, SearchParams, SearchResponse} from "meilisearch";
 
 
 export const Base = (props: { search?: string; children?: any }) => html`
@@ -23,26 +23,30 @@ export const Base = (props: { search?: string; children?: any }) => html`
     </head>
 
     <body hx-ext="loading-states">
-    <div>
         <nav class="navbar" role="navigation" aria-label="main navigation">
             <div class="navbar-end">
-                <div class="navbar-item">
-                    <div class="buttons"  x-data="user">
-                        <template x-if="loggedIn">
+                <div class="navbar-item"  x-data="user">
+                    <template x-if="loggedIn">
+                        <div class="buttons">
+                            <a href="/favorite" class="button is-light">
+                                Favorites
+                            </a>
                             <a href="/logout" class="button is-light">
                                 Log Out
                             </a>
-                        </template>
-                        <template x-if="!loggedIn">
+                        </div>
+                    </template>
+                    <template x-if="!loggedIn">
+                        <div class="buttons">
                             <a href="/login" class="button is-light">
                                 Log in
                             </a>
-                        </template>
-                    </div>
+                        </div>
+                    </template>
                 </div>
             </div>
         </nav>
-        <div>
+        <section class="section">
             <div class="container has-text-centered">
                 <div class="column is-6 is-offset-3">
                     <div class="box">
@@ -77,8 +81,7 @@ export const Base = (props: { search?: string; children?: any }) => html`
             <div id="search-results">
                 ${props.children}
             </div>
-        </div>
-    </div>
+        </section>
     <script>
         document.addEventListener('alpine:init', () => {
             Alpine.data('user', () => ({
@@ -181,6 +184,41 @@ export const SearchResults = (
                         );
                     })}
                 </nav>
+            </div>
+        </div>
+    </div> )
+
+
+export const FavoriteResults = (
+    searchResults: ResourceResults<Record<string, any>[]>
+) => (
+    <div class="columns">
+        <div class="column is-12">
+            <div>
+                <table class="table is-hoverable is-narrow">
+                    <thead>
+                    <tr>
+                        <th>Id</th>
+                        <th>Issue</th>
+                        <th>Date</th>
+                        <th>Recipe Name</th>
+                        <th>Page</th>
+                        <th>Category</th>
+                    </tr>
+                    </thead>
+                    {searchResults.results.map((f) => {
+                        return (
+                            <tr>
+                                <td>{f.recipeId}</td>
+                                <td>{f.issue}</td>
+                                <td>{f.months + " " + f.year}</td>
+                                <td>{f.mainTitle || f.coverTitle}</td>
+                                <td>{f.page}</td>
+                                <td>{f.categories.join(", ")}</td>
+                            </tr>
+                        );
+                    })}
+                </table>
             </div>
         </div>
     </div> )
