@@ -7,10 +7,15 @@ node_compat = true
 binding = "AUTH_SESSION"
 id = "7432226397d743b4b82fec98a9a7286b"
 
+[[d1_databases]]
+binding = "DB" # i.e. available in your Worker on env.DB
+database_name = "recipe-prod"
+database_id = "22510ddd-a85a-4d97-84de-3bc697f5a9bb"
+
+
 [vars]
 SEARCHINDEX = "recipes"
 SEARCHHOST = "https://search.roadsign.pictures"
-SQL_URL = "libsql://recipe-zmaillard.turso.io"
 AUTH0_CLIENTID = "zfOtjqVGMEufqrtnnBuMyDCV17iE4HSi"
 AUTH0_DOMAIN = "sagebrushgis.auth0.com"
 AUTH0_CALLBACK = "https://recipesear.ch/callback"

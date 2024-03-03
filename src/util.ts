@@ -1,10 +1,8 @@
 import * as jose from "jose";
-import {jwtCheckMiddleware} from "./middleware";
-import { createClient } from "@libsql/client/web";
 import {getUserFavorite} from "./db";
 import {Meilisearch, SearchParams} from "meilisearch";
 import {FavoriteResults, SearchResults} from "./content";
-import app from "./index";
+import {D1Database} from "@cloudflare/workers-types";
 
 export function randomString(length: number): string {
     const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -71,14 +69,9 @@ interface SqlClient {
     SQL_AUTH_TOKEN: string;
 }
 
-export const buildSearch = async (isLoggedIn: boolean, searchParams: SearchClient, sqlClient: SqlClient, searchTerm: string, categoryFacet?: string, yearFacet?:string,  email?:string) => {
+export const buildSearch = async (isLoggedIn: boolean, searchParams: SearchClient, sql: D1Database,  searchTerm: string, categoryFacet?: string, yearFacet?:string,  email?:string) => {
     let favorites:number[] = []
     if (isLoggedIn && email) {
-        const sql = createClient({
-            url: sqlClient.SQL_URL,
-            authToken: sqlClient.SQL_AUTH_TOKEN,
-        });
-
         favorites = await getUserFavorite(sql, email)
     }
 
@@ -108,12 +101,7 @@ export const buildSearch = async (isLoggedIn: boolean, searchParams: SearchClien
 }
 
 
-export const buildFavorites = async (searchParams: SearchClient, sqlClient: SqlClient, email:string) => {
-        const sql = createClient({
-            url: sqlClient.SQL_URL,
-            authToken: sqlClient.SQL_AUTH_TOKEN,
-        });
-
+export const buildFavorites = async (searchParams: SearchClient, sql: D1Database, email:string) => {
        const  favorites = await getUserFavorite(sql, email)
 
 

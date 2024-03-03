@@ -1,12 +1,10 @@
 import { Hono } from "hono/quick";
-import type { KVNamespace } from '@cloudflare/workers-types'
+import type { KVNamespace, D1Database } from '@cloudflare/workers-types'
 import {setCookie, deleteCookie, getCookie} from "hono/cookie"
-import {Base, SearchResults, hasFavorite, noFavorite} from "./content";
-import {DocumentQuery, Meilisearch, SearchParams} from "meilisearch";
-import { createClient } from "@libsql/client/web";
+import {Base, hasFavorite, noFavorite} from "./content";
 import {buildFavorites, buildSearch, randomString, validateJwt} from "./util";
 import {jwtCheckMiddleware, jwtValidateMiddleware} from "./middleware";
-import {addFavorite, getUserFavorite, removeFavorite} from "./db";
+import {addFavorite, removeFavorite} from "./db";
 import { zValidator} from "@hono/zod-validator";
 import { z } from "zod";
 
@@ -14,14 +12,13 @@ type Bindings = {
   SEARCHTOKEN: string;
   SEARCHHOST: string;
   SEARCHINDEX: string;
-  SQL_URL: string;
-  SQL_AUTH_TOKEN: string;
   AUTH0_CLIENTID: string;
   AUTH0_DOMAIN: string;
   AUTH0_CALLBACK: string;
   AUTH0_CLIENT_SECRET: string;
   AUTH0_AUDIENCE: string;
   AUTH_SESSION: KVNamespace;
+  DB: D1Database;
 };
 
 type Variables = {
@@ -44,7 +41,7 @@ app.get("/",jwtCheckMiddleware, async (c) => {
 
   if (search) {
     let email = getCookie(c, 'name')
-    let searchItem = await buildSearch(isLoggedIn, c.env, c.env, search, undefined, undefined, email )
+    let searchItem = await buildSearch(isLoggedIn, c.env, c.env.DB, "", undefined, email )
     return c.html(Base({ search, children: searchItem}));
 
   }
@@ -135,12 +132,12 @@ app.post("/search",jwtCheckMiddleware, zValidator(
   let yearFacet = body.year;
 
 
-  let searchItem = await buildSearch(isLoggedIn, c.env, c.env, searchTerm, categoryFacet, yearFacet, email )
+  let searchItem = await buildSearch(isLoggedIn, c.env, c.env.DB, searchTerm, categoryFacet, yearFacet, email )
   return c.html(searchItem);
 });
 
 app.get('/favorite', jwtValidateMiddleware, async (c) => {
-  const favs =  await buildFavorites(c.env, c.env, c.var.email)
+  const favs =  await buildFavorites(c.env, c.env.DB, c.var.email)
   return c.html(Base({ search: "", children: favs}));
 })
 
@@ -152,12 +149,8 @@ app.post("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
     return c.status(400)
   }
 
-  const sql = createClient({
-    url: c.env.SQL_URL,
-    authToken: c.env.SQL_AUTH_TOKEN,
-  });
 
-  await addFavorite(sql, recipeIdNum, c.var.email)
+  await addFavorite(c.env.DB, recipeIdNum, c.var.email)
 
   return c.html(hasFavorite({recipeId: recipeIdNum}))
 })
@@ -170,19 +163,10 @@ app.delete("/favorite/:recipeId",jwtValidateMiddleware, async (c) => {
     return c.status(400)
   }
 
-  const sql = createClient({
-    url: c.env.SQL_URL,
-    authToken: c.env.SQL_AUTH_TOKEN,
-  });
-
-  await removeFavorite(sql, recipeIdNum, c.var.email)
+  await removeFavorite(c.env.DB, recipeIdNum, c.var.email)
 
   return c.html(noFavorite({recipeId: recipeIdNum}))
 })
 
-/*
-app.post("/note",jwtValidateMiddleware, async (c) => {
-
-})*/
 
 export default app;
