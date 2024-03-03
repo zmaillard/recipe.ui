@@ -1,6 +1,6 @@
 ## Recipe Search
 
-Search Cooks Illustrated magazines, and manage favorites.  Hosted as a Cloudflare Worker, with a SQLite backend.
+Search Cooks Illustrated magazines, and manage favorites.  Hosted as a Cloudflare Worker, with a Cloudflare D1 backend.
 
 #### Run Locally
 ```
