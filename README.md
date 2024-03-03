@@ -1,8 +1,14 @@
+## Recipe Search
+
+Search Cooks Illustrated magazines, and manage favorites.  Hosted as a Cloudflare Worker, with a SQLite backend.
+
+#### Run Locally
 ```
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
+#### Deploy
 ```
-npm run deploy
+bun run deploy
 ```
