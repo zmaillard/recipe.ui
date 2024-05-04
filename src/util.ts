@@ -1,5 +1,5 @@
 import * as jose from "jose";
-import { Issue, getUserFavorite } from "./db";
+import { Issue, RecipeIndex, getUserFavorite } from "./db";
 import { Meilisearch, SearchParams } from "meilisearch";
 import { FavoriteResults, SearchResults } from "./content";
 import { D1Database } from "@cloudflare/workers-types";
@@ -155,6 +155,31 @@ export const buildSearch = async (
 
   const searchRes = await index.search(searchTerm, searchObj);
   return SearchResults(searchRes, isLoggedIn, favorites);
+};
+
+export const refreshIndex = async (
+  searchParams: SearchClient,
+  recipes: RecipeIndex[],
+) => {
+  const batchSize = 100;
+
+  const client = new Meilisearch({
+    host: searchParams.SEARCHHOST,
+    apiKey: searchParams.SEARCHTOKEN,
+  });
+
+  const index = client.index(searchParams.SEARCHINDEX);
+
+  let batch = recipes.reduce((batches, cur, i) => {
+    if (i % batchSize == 0) batches.push([]);
+    batches[batches.length - 1].push(recipes[i]);
+    return batches;
+  }, [] as RecipeIndex[][]);
+
+  for (let i = 0; i < batch.length; i++) {
+    console.log(`Processing Batch ${i + 1} of ${batch.length}`);
+    await index.addDocuments(batch[i]);
+  }
 };
 
 export const buildFavorites = async (

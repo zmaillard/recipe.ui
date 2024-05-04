@@ -84,6 +84,16 @@ export const Import = (props: { children?: any }) => html`
                     Search
                   </button>
                 </p>
+                <p class="control">
+                  <button
+                    data-loading-class="is-loading"
+                    id="refresh-button"
+                    class="button is-info"
+                    type="button"
+                  >
+                    Index
+                  </button>
+                </p>
               </div>
             </div>
           </div>
@@ -93,6 +103,16 @@ export const Import = (props: { children?: any }) => html`
       <script>
         const upload = document.getElementById("import-button");
         const issueNumber = document.getElementById("issueNumber");
+
+        const refresh = document.getElementById("refresh-button");
+        refresh.addEventListener("click", async () => {
+          fetch("/refresh", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }).then((response) => alert("Indexing complete"));
+        });
 
         upload.addEventListener("click", async () => {
           const fileInput = document.getElementById("file-input");
@@ -126,7 +146,7 @@ export const Import = (props: { children?: any }) => html`
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                  issue: issueNumber.value,
+                  issue: parseInt(issueNumber.value, 10),
                   recipes: results.data,
                 }),
               })

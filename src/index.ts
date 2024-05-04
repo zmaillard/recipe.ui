@@ -8,9 +8,10 @@ import {
   randomString,
   validateJwt,
   getIssue,
+  refreshIndex,
 } from "./util";
 import { jwtCheckMiddleware, jwtValidateMiddleware } from "./middleware";
-import { addFavorite, importIssue, removeFavorite } from "./db";
+import { addFavorite, getAllRecipes, importIssue, removeFavorite } from "./db";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 
@@ -135,6 +136,15 @@ app.get("/import", jwtValidateMiddleware, async (c) => {
   return c.html(Import({}));
 });
 
+app.post("/refresh", jwtValidateMiddleware, async (c) => {
+  console.log("Loading Recipes");
+  const allRecipesForIndex = await getAllRecipes(c.env.DB);
+  console.log(`${allRecipesForIndex.length} Recipes Found`);
+  await refreshIndex(c.env, allRecipesForIndex);
+
+  return c.status(200);
+});
+
 app.post(
   "/import",
   jwtValidateMiddleware,
@@ -156,7 +166,6 @@ app.post(
     let body = c.req.valid("json");
 
     const issue = getIssue(body.issue);
-    console.log(issue);
     await importIssue(c.env.DB, issue, body.recipes);
     return c.html(Import({}));
   },

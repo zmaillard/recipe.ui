@@ -14,6 +14,54 @@ export interface Issue {
   number: number;
 }
 
+interface RecipeRow {
+  id: number;
+  titleFrontCover?: string | null;
+  titleBackCover?: string | null;
+  page: number;
+  notes?: string | null;
+  number: number;
+  startMonth: string;
+  endMonth: string;
+  year: number;
+  name: string;
+}
+
+export interface RecipeIndex {
+  recipeId: string;
+  issue: number;
+  months: string;
+  year: number;
+  mainTitle?: string;
+  coverTitle?: string;
+  categories: string[];
+  page: number;
+  notes?: string;
+}
+export const getAllRecipes = async (db: D1Database): Promise<RecipeIndex[]> => {
+  let { results } = await db
+    .prepare(
+      "SELECT r.id,r.titleFrontCover, r.titleBackCover,r.page,r.notes, i.number, i.startMonth, i.endMonth, i.year, c.name FROM recipe r INNER JOIN issue i ON r.issueId = i.id INNER JOIN category c ON r.categoryId = c.id",
+    )
+    .all<RecipeRow>();
+
+  return results.map((r) => toIndex(r));
+};
+
+function toIndex(recipe: RecipeRow): RecipeIndex {
+  return {
+    recipeId: recipe.id.toString(),
+    issue: recipe.number,
+    months: `${recipe.startMonth} - ${recipe.endMonth}`,
+    year: recipe.year,
+    mainTitle: recipe.titleBackCover ?? undefined,
+    coverTitle: recipe.titleFrontCover ?? undefined,
+    categories: [recipe.name],
+    page: recipe.page,
+    notes: recipe.notes ?? undefined,
+  };
+}
+
 const getIssueNumber = async (
   db: D1Database,
   issue: Issue,
