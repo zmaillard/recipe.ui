@@ -5,6 +5,7 @@
   },
   "dependencies": {
     "@hono/zod-validator": "^0.1.11",
+    "csv-parser": "^3.0.0",
     "hono": "^3.12.5",
     "jose": "^5.2.0",
     "meilisearch": "^0.37.0",

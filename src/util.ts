@@ -1,119 +1,178 @@
 import * as jose from "jose";
-import {getUserFavorite} from "./db";
-import {Meilisearch, SearchParams} from "meilisearch";
-import {FavoriteResults, SearchResults} from "./content";
-import {D1Database} from "@cloudflare/workers-types";
+import { Issue, getUserFavorite } from "./db";
+import { Meilisearch, SearchParams } from "meilisearch";
+import { FavoriteResults, SearchResults } from "./content";
+import { D1Database } from "@cloudflare/workers-types";
+
+export function getIssue(issueNumber: number): Issue {
+  const year = Math.floor(issueNumber / 6) + 1993;
+  switch (issueNumber % 6) {
+    case 0:
+      return {
+        startMonth: "January",
+        endMonth: "February",
+        year,
+        number: issueNumber,
+      };
+    case 1:
+      return {
+        startMonth: "March",
+        endMonth: "April",
+        year,
+        number: issueNumber,
+      };
+    case 2:
+      return { startMonth: "May", endMonth: "June", year, number: issueNumber };
+    case 3:
+      return {
+        startMonth: "July",
+        endMonth: "August",
+        year,
+        number: issueNumber,
+      };
+    case 4:
+      return {
+        startMonth: "September",
+        endMonth: "October",
+        year,
+        number: issueNumber,
+      };
+    case 5:
+      return {
+        startMonth: "November",
+        endMonth: "December",
+        year,
+        number: issueNumber,
+      };
+    default:
+      throw new Error("Invalid Issue Number");
+  }
+}
 
 export function randomString(length: number): string {
-    const chars = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    let result = '';
-    for (let i = length; i > 0; --i) result += chars[Math.floor(Math.random() * chars.length)];
-    return result;
+  const chars =
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  let result = "";
+  for (let i = length; i > 0; --i)
+    result += chars[Math.floor(Math.random() * chars.length)];
+  return result;
 }
 
 interface JwtUser {
-    name: string
-    email: string
-    phoneNumber: string
-    isValid: boolean
+  name: string;
+  email: string;
+  phoneNumber: string;
+  isValid: boolean;
 }
 
+export async function validateJwt(
+  token: string,
+  jwksUrl: string,
+): Promise<JwtUser> {
+  const jwks = jose.createRemoteJWKSet(new URL(jwksUrl));
 
-export async function validateJwt(token: string, jwksUrl: string): Promise<JwtUser> {
-    const jwks = jose.createRemoteJWKSet(new URL(jwksUrl))
+  try {
+    const { payload } = await jose.jwtVerify(token, jwks, {
+      algorithms: ["RS256"],
+    });
 
-    try {
-        const { payload } = await jose.jwtVerify(token, jwks, {
-            algorithms: ["RS256"],
-        });
+    let name = "";
+    let email = "";
+    let phoneNumber = "";
 
-        let name = ""
-        let email = ""
-        let phoneNumber = ""
-
-        if (Object.hasOwn(payload, 'http://sagebrushgis.com/phone_number' )) {
-            phoneNumber = payload['http://sagebrushgis.com/phone_number'] as string
-        }
-
-        if (Object.hasOwn(payload, 'http://sagebrushgis.com/name' )) {
-            name = payload['http://sagebrushgis.com/name'] as string
-        }
-
-        if (Object.hasOwn(payload, 'http://sagebrushgis.com/email' )) {
-            email = payload['http://sagebrushgis.com/email'] as string
-        }
-        return {
-            name: name,
-            email:  email,
-            phoneNumber:  phoneNumber,
-            isValid: true,
-        }
-    } catch {
-        return {
-            name: "",
-            email:  "",
-            phoneNumber:  "",
-            isValid: false,
-        }
+    if (Object.hasOwn(payload, "http://sagebrushgis.com/phone_number")) {
+      phoneNumber = payload["http://sagebrushgis.com/phone_number"] as string;
     }
+
+    if (Object.hasOwn(payload, "http://sagebrushgis.com/name")) {
+      name = payload["http://sagebrushgis.com/name"] as string;
+    }
+
+    if (Object.hasOwn(payload, "http://sagebrushgis.com/email")) {
+      email = payload["http://sagebrushgis.com/email"] as string;
+    }
+    return {
+      name: name,
+      email: email,
+      phoneNumber: phoneNumber,
+      isValid: true,
+    };
+  } catch {
+    return {
+      name: "",
+      email: "",
+      phoneNumber: "",
+      isValid: false,
+    };
+  }
 }
 
-interface SearchClient  {
-    SEARCHTOKEN: string;
-    SEARCHHOST: string;
-    SEARCHINDEX: string;
+interface SearchClient {
+  SEARCHTOKEN: string;
+  SEARCHHOST: string;
+  SEARCHINDEX: string;
 }
 
 interface SqlClient {
-    SQL_URL: string;
-    SQL_AUTH_TOKEN: string;
+  SQL_URL: string;
+  SQL_AUTH_TOKEN: string;
 }
 
-export const buildSearch = async (isLoggedIn: boolean, searchParams: SearchClient, sql: D1Database,  searchTerm: string, categoryFacet?: string, yearFacet?:string,  email?:string) => {
-    let favorites:number[] = []
-    if (isLoggedIn && email) {
-        favorites = await getUserFavorite(sql, email)
-    }
+export const buildSearch = async (
+  isLoggedIn: boolean,
+  searchParams: SearchClient,
+  sql: D1Database,
+  searchTerm: string,
+  categoryFacet?: string,
+  yearFacet?: string,
+  email?: string,
+) => {
+  let favorites: number[] = [];
+  if (isLoggedIn && email) {
+    favorites = await getUserFavorite(sql, email);
+  }
 
-    const client = new Meilisearch({
-        host: searchParams.SEARCHHOST,
-        apiKey: searchParams.SEARCHTOKEN,
-    });
+  const client = new Meilisearch({
+    host: searchParams.SEARCHHOST,
+    apiKey: searchParams.SEARCHTOKEN,
+  });
 
-    const index = client.index(searchParams.SEARCHINDEX);
-    let filters: string[] = [];
+  const index = client.index(searchParams.SEARCHINDEX);
+  let filters: string[] = [];
 
-    if (yearFacet) {
-        filters = ["year = " + yearFacet];
-    }
-    if (categoryFacet) {
-        filters = ["categories = '" + categoryFacet + "'"];
-    }
+  if (yearFacet) {
+    filters = ["year = " + yearFacet];
+  }
+  if (categoryFacet) {
+    filters = ["categories = '" + categoryFacet + "'"];
+  }
 
-    let searchObj: SearchParams = { facets: ["categories", "year"] };
+  let searchObj: SearchParams = { facets: ["categories", "year"] };
 
-    if (filters.length > 0) {
-        searchObj.filter = filters;
-    }
+  if (filters.length > 0) {
+    searchObj.filter = filters;
+  }
 
-    const searchRes = await index.search(searchTerm, searchObj);
-    return SearchResults(searchRes, isLoggedIn, favorites);
-}
+  const searchRes = await index.search(searchTerm, searchObj);
+  return SearchResults(searchRes, isLoggedIn, favorites);
+};
 
+export const buildFavorites = async (
+  searchParams: SearchClient,
+  sql: D1Database,
+  email: string,
+) => {
+  const favorites = await getUserFavorite(sql, email);
 
-export const buildFavorites = async (searchParams: SearchClient, sql: D1Database, email:string) => {
-       const  favorites = await getUserFavorite(sql, email)
+  const client = new Meilisearch({
+    host: searchParams.SEARCHHOST,
+    apiKey: searchParams.SEARCHTOKEN,
+  });
 
+  const index = client.index(searchParams.SEARCHINDEX);
+  const filter = favorites.map((id) => `recipeId = ${id}`).join(" OR ");
 
-    const client = new Meilisearch({
-        host: searchParams.SEARCHHOST,
-        apiKey: searchParams.SEARCHTOKEN,
-    });
+  let documents = await index.getDocuments({ filter: `(${filter})` });
 
-    const index = client.index(searchParams.SEARCHINDEX);
-    const filter = favorites.map((id) => (`recipeId = ${id}`)).join(" OR ")
-
-    let documents = await index.getDocuments({filter: `(${filter})`});
-
-    return FavoriteResults(documents);
-}
+  return FavoriteResults(documents);
+};
