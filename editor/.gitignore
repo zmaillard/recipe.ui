@@ -1,0 +1,5 @@
+.env
+.idea/
+sql/dump.sql
+recipe.sqlite
+recipe.sqlite.bak
