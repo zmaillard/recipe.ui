@@ -1,0 +1,6 @@
+{:paths ["script"]
+ :tasks {import {:task import/-main
+                 :doc "Import new recipes into D1"}
+         index {:task index/-main
+                  :doc "Update search index"}}}
+
